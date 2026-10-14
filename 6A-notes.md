@@ -17,9 +17,9 @@ Raw outputs are in `runs/`: `run-method.txt`, `run-lines.txt` and `run-noguard.t
 
 | Configuration | Chunks | Index time |
 |---|---|---|
-| Starter stub chunker (one chunk per file) + `StubEmbedder` | **8** | 11 ms |
-| Method chunker + `MiniLmEmbedder` | **51** (42 methods/ctors + 9 type headers) | 401 ms |
-| 50-line chunker + `MiniLmEmbedder` (task 7) | 12 | 185 ms |
+| Starter stub chunker (one chunk per file) + `StubEmbedder` | **8** | 0.011 s |
+| Method chunker + `MiniLmEmbedder` | **51** (42 methods/ctors + 9 type headers) | 0.401 s |
+| 50-line chunker + `MiniLmEmbedder` (task 7) | 12 | 0.185 s |
 
 Going from 8 to 51 chunks gives about 6.4× more chunks. The 42 method chunks match a hand count of the methods in the 8 files, so the chunker is not merging methods.
 End-to-end, `make run` takes about 43 s for 11 questions, which is about 4 s per answer on llama3.2:3b.
@@ -54,6 +54,223 @@ The current `prompts/rag.txt` makes three changes:
 - the model is asked to cite file:lines.
 
 With these changes the model answers all 10 questions and still refuses the out-of-corpus one.
+
+## 2a. Per-question detail: answer, top-8 chunks, judgement (task 5)
+
+From `runs/run-method.txt` (method chunker, MiniLM, llama3.2:3b, k = 8, guarded prompt). The **bold** rows are the chunks that contain the answer.
+
+### Q1. Where is the fine for an overdue loan computed?
+
+Top-8 chunks:
+
+1. util/FinePolicy.java:9-15
+2. core/Loan.java:45-54
+3. api/ReportService.java:28-30
+4. core/LoanRegistry.java:34-42
+5. api/LibraryService.java:43-45
+6. **util/FinePolicy.java:27-36**
+7. core/Loan.java:33-35
+8. core/Loan.java:37-39
+
+Answer:
+
+> The fine for an overdue loan is computed by the `finePolicy` using the `computeFine` method, which takes a `Loan` and a `LocalDate` as parameters. The relevant code is in `sample-repo/com/example/util/FinePolicy.java:27-36`, where the `computeFine` method is implemented.
+>
+> [6] sample-repo/com/example/util/FinePolicy.java:27-36
+
+Judgement: ✅ Correct. It names `computeFine` in FinePolicy.java:27-36.
+
+### Q2. What class holds the catalogue of books, and how is it indexed?
+
+Top-8 chunks:
+
+1. **util/Catalog.java:11-17**
+2. core/Book.java:6-17
+3. api/LibraryService.java:47-49
+4. util/Catalog.java:23-25
+5. util/Catalog.java:19-21
+6. core/Book.java:27-29
+7. util/Catalog.java:27-40
+8. api/LibraryService.java:30-41
+
+Answer:
+
+> The catalogue of books is held by the `Catalog` class, which is indexed by ISBN. The catalogue is implemented as a `Map` where the key is the ISBN and the value is the corresponding `Book` object. The `Catalog` class provides a method `searchByTitle` for case-insensitive substring search over the title, and a method `findByIsbn` for finding a book by its ISBN.
+
+Judgement: ✅ Correct. The class is `Catalog`, keyed by ISBN in a `Map<String, Book>`.
+
+### Q3. How does the system decide a loan has been returned?
+
+Top-8 chunks:
+
+1. **core/Loan.java:45-54**
+2. core/Loan.java:37-39
+3. core/Loan.java:33-35
+4. core/Loan.java:6-17
+5. core/LoanRegistry.java:8-14
+6. core/LoanRegistry.java:24-32
+7. core/LoanRegistry.java:16-18
+8. core/Loan.java:29-31
+
+Answer:
+
+> The system decides a loan has been returned when the `returnedOn` field of the `Loan` object is not null. This is implemented in the `isOverdue` method, where it returns `false` when `returnedOn` is not null, indicating that the loan has been returned. (sample-repo/com/example/core/Loan.java:45-54)
+
+Judgement: ✅ Correct (`returnedOn != null`). It does not mention `markReturned(LocalDate)`, which sets the field.
+
+### Q4. What is the maximum fine the policy allows?
+
+Top-8 chunks:
+
+1. **util/FinePolicy.java:9-15**
+2. util/FinePolicy.java:27-36
+3. **util/FinePolicy.java:22-25**
+4. core/Member.java:41-49
+5. api/LibraryService.java:43-45
+6. util/FinePolicy.java:17-19
+7. api/LibraryService.java:24-28
+8. core/Loan.java:6-17
+
+Answer:
+
+> The maximum fine the policy allows is 500 rupees. This is defined in the `StandardFinePolicy` class as `private static final BigDecimal CAP = new BigDecimal("500.00");`.
+
+Judgement: ✅ Correct: 500 rupees, the `CAP` constant.
+
+### Q5. Which methods write to the loan registry?
+
+Top-8 chunks:
+
+1. core/LoanRegistry.java:8-14
+2. **core/LoanRegistry.java:16-18**
+3. api/ReportService.java:11-18
+4. core/LoanRegistry.java:34-42
+5. core/Loan.java:6-17
+6. core/LoanRegistry.java:24-32
+7. core/LoanRegistry.java:20-22
+8. core/Loan.java:45-54
+
+Answer:
+
+> The methods that write to the loan registry are `record(Loan loan)` in `LoanRegistry.java:16-18` and `loansFor(String memberId)` in `LoanRegistry.java:24-32`.
+
+Judgement: ⚠️ Partly wrong. `record` is right, but `loansFor` only reads. It misses `LibraryService.borrow` → `registry.record(loan)`, which was not in the top-8.
+
+### Q6. How many books can a member have on loan at the same time?
+
+Top-8 chunks:
+
+1. core/Loan.java:6-17
+2. **core/Member.java:41-49**
+3. core/Book.java:6-17
+4. core/Loan.java:19-23
+5. api/LibraryService.java:30-41
+6. api/ReportService.java:32-43
+7. core/Loan.java:25-27
+8. core/LoanRegistry.java:24-32
+
+Answer:
+
+> A member can have at most 5 open loans. This is enforced by the `addLoan` method in the `Member` class, which throws an `IllegalStateException` if the member already has 5 open loans.
+>
+> File: sample-repo/com/example/core/Member.java, lines 41-49.
+
+Judgement: ✅ Correct: 5 open loans, enforced in `Member.addLoan`.
+
+### Q7. How long is the default loan term?
+
+Top-8 chunks:
+
+1. core/Loan.java:45-54
+2. **core/Loan.java:6-17**
+3. util/FinePolicy.java:27-36
+4. core/LoanRegistry.java:8-14
+5. core/LoanRegistry.java:16-18
+6. core/Loan.java:33-35
+7. core/Loan.java:37-39
+8. core/Member.java:41-49
+
+Answer:
+
+> The default loan term is 21 days. According to the code in file: sample-repo/com/example/core/Loan.java:6-17, "A loan is either open (returnedOn == null) or closed. Loans default to a 21-day term."
+
+Judgement: ✅ Correct: 21 days (`DEFAULT_TERM_DAYS`).
+
+### Q8. How does the report service find overdue loans?
+
+Top-8 chunks:
+
+1. **api/ReportService.java:28-30**
+2. api/ReportService.java:11-18
+3. api/ReportService.java:32-43
+4. api/ReportService.java:20-22
+5. core/LoanRegistry.java:8-14
+6. core/Loan.java:45-54
+7. **core/LoanRegistry.java:34-42**
+8. core/LoanRegistry.java:16-18
+
+Answer:
+
+> The report service finds overdue loans by calling the `overdueOn` method on the `registry` object, which returns a list of loans that are overdue on the specified date. This is implemented in `ReportService.java:28-30`.
+
+Judgement: ✅ Correct: `ReportService.overdue` → `LoanRegistry.overdueOn`.
+
+### Q9. When are two Book objects considered equal?
+
+Top-8 chunks:
+
+1. **core/Book.java:47-55**
+2. core/Book.java:6-17
+3. core/Book.java:19-25
+4. util/Catalog.java:42-50
+5. util/Catalog.java:19-21
+6. api/LibraryService.java:30-41
+7. core/Member.java:51-53
+8. core/Book.java:27-29
+
+Answer:
+
+> Two Book objects are considered equal if they share an ISBN. This is implemented in the equals() method of the Book class, which checks if the ISBN of the current object is equal to the ISBN of the object passed as a parameter: `return isbn.equals(other.isbn);` (file: sample-repo/com/example/core/Book.java:47-55).
+
+Judgement: ✅ Correct: equal when the ISBNs are equal.
+
+### Q10. How does searching for books by title work?
+
+Top-8 chunks:
+
+1. **util/Catalog.java:27-40**
+2. api/LibraryService.java:47-49
+3. util/Catalog.java:11-17
+4. core/Book.java:31-33
+5. core/Book.java:62-65
+6. util/Catalog.java:23-25
+7. core/Book.java:6-17
+8. api/LibraryService.java:30-41
+
+Answer:
+
+> Searching for books by title works by converting the input title to lowercase and then checking if it contains the lowercase version of the input string. This is done in the `searchByTitle` method of the `Catalog` class, as shown in file: `sample-repo/com/example/util/Catalog.java:27-40`.
+
+Judgement: ✅ Essentially correct: a case-insensitive `contains` over titles. The wording is slightly muddled.
+
+### Q11 (not in corpus). Which Kafka topic does the library publish loan events to?
+
+Top-8 chunks:
+
+1. core/LoanRegistry.java:8-14
+2. api/LibraryService.java:30-41
+3. api/LibraryService.java:14-22
+4. core/Loan.java:25-27
+5. core/LoanRegistry.java:16-18
+6. core/Loan.java:6-17
+7. core/Loan.java:33-35
+8. core/Book.java:6-17
+
+Answer:
+
+> I do not find that in the passages.
+
+Judgement: ✅ Correct refusal: there is no Kafka in the repo (task 8).
 
 ## 3. "Bad chunker" experiment (task 7): split every 50 lines
 
