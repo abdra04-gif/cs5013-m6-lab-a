@@ -33,7 +33,7 @@ End-to-end, `make run` takes about 43 s for 11 questions, which is about 4 s per
 | 1 | Where is the fine for an overdue loan computed? | FinePolicy.java:27-36 `StandardFinePolicy.computeFine` | 6 | "computed by the `finePolicy` using the `computeFine` method … FinePolicy.java:27-36" | ✅ correct |
 | 2 | What class holds the catalogue of books, and how is it indexed? | Catalog.java:11-17 (`Map<String,Book> byIsbn`) | 1 | "`Catalog` … indexed by ISBN … a `Map` where the key is the ISBN" | ✅ correct |
 | 3 | How does the system decide a loan has been returned? | Loan.java:41-43 / 45-54 (`returnedOn`) | 1 | "returned when `returnedOn` is not null … `isOverdue` returns false" | ✅ correct, but does not mention `markReturned` |
-| 4 | What is the maximum fine the policy allows? | FinePolicy.java:22-25 (`CAP`) | 2 | "500 rupees … `CAP = new BigDecimal("500.00")`" | ✅ correct |
+| 4 | What is the maximum fine the policy allows? | FinePolicy.java:27-36 (cap applied) / 22-25 (`CAP` field) | 2 / 3 | "500 rupees … `CAP = new BigDecimal("500.00")`" | ✅ correct |
 | 5 | Which methods write to the loan registry? | LoanRegistry.java:16-18 `record` | 2 | "`record(Loan)` … and `loansFor(String)`" | ⚠️ partly wrong: `loansFor` only reads, and it misses `LibraryService.borrow`, which calls `registry.record` |
 | 6 | How many books can a member have on loan at the same time? | Member.java:41-49 `addLoan` | 2 | "at most 5 open loans … `addLoan` throws `IllegalStateException`" | ✅ correct |
 | 7 | How long is the default loan term? | Loan.java:6-17 (`DEFAULT_TERM_DAYS = 21`) | 2 | "21 days … Loan.java:6-17" | ✅ correct |
