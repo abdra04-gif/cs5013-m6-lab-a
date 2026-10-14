@@ -1,0 +1,189 @@
+Embedder: all-MiniLM-L6-v2/langchain4j-0.36.0   LLM: OllamaLlm[llama3.2:3b]   chunker: method
+Indexed 51 chunk(s) from sample-repo in 631 ms
+
+=== Q: Where is the fine for an overdue loan computed?
+  hit: sample-repo/com/example/util/FinePolicy.java:9-15
+  hit: sample-repo/com/example/core/Loan.java:45-54
+  hit: sample-repo/com/example/api/ReportService.java:28-30
+  hit: sample-repo/com/example/core/LoanRegistry.java:34-42
+  hit: sample-repo/com/example/api/LibraryService.java:43-45
+  hit: sample-repo/com/example/util/FinePolicy.java:27-36
+  hit: sample-repo/com/example/core/Loan.java:33-35
+  hit: sample-repo/com/example/core/Loan.java:37-39
+--- A: The fine for an overdue loan is computed by the `computeFine` method in the `FinePolicy` interface, which is implemented by the `StandardFinePolicy` class in the `FinePolicy.java` file, lines 27-36.
+
+```java
+// File: sample-repo/com/example/util/FinePolicy.java
+@Override
+public BigDecimal computeFine(Loan loan, LocalDate today) {
+    if (!loan.isOverdue(today)) {
+        return BigDecimal.ZERO;
+    }
+    long daysLate = ChronoUnit.DAYS.between(loan.getBorrowedOn(), today)
+            - Loan.DEFAULT_TERM_DAYS;
+    BigDecimal fine = PER_DAY.multiply(BigDecimal.valueOf(daysLate));
+    return fine.compareTo(CAP) > 0 ? CAP : fine;
+}
+```
+
+This method takes into account the loan's overdue status and calculates the fine based on the number of days late.
+
+=== Q: What class holds the catalogue of books, and how is it indexed?
+  hit: sample-repo/com/example/util/Catalog.java:11-17
+  hit: sample-repo/com/example/core/Book.java:6-17
+  hit: sample-repo/com/example/api/LibraryService.java:47-49
+  hit: sample-repo/com/example/util/Catalog.java:23-25
+  hit: sample-repo/com/example/util/Catalog.java:19-21
+  hit: sample-repo/com/example/core/Book.java:27-29
+  hit: sample-repo/com/example/util/Catalog.java:27-40
+  hit: sample-repo/com/example/api/LibraryService.java:30-41
+--- A: The catalogue of books is held by the `Catalog` class, which is indexed by ISBN. As stated in the `Catalog` class, "Provides very simple search primitives; a real system would delegate to a proper index." (sample-repo/com/example/util/Catalog.java:11-17). The catalogue is indexed by using a `HashMap` to store books keyed by ISBN, as seen in the `add(Book b)` method (sample-repo/com/example/util/Catalog.java:19-21).
+
+=== Q: How does the system decide a loan has been returned?
+  hit: sample-repo/com/example/core/Loan.java:45-54
+  hit: sample-repo/com/example/core/Loan.java:37-39
+  hit: sample-repo/com/example/core/Loan.java:33-35
+  hit: sample-repo/com/example/core/Loan.java:6-17
+  hit: sample-repo/com/example/core/LoanRegistry.java:8-14
+  hit: sample-repo/com/example/core/LoanRegistry.java:24-32
+  hit: sample-repo/com/example/core/LoanRegistry.java:16-18
+  hit: sample-repo/com/example/core/Loan.java:29-31
+--- A: The system decides a loan has been returned when the `returnedOn` field of the `Loan` object is not null. This is implemented in the `isOverdue` method, where it returns `false` when `returnedOn` is not null, indicating that the loan has been returned. (sample-repo/com/example/core/Loan.java:45-54)
+
+=== Q: What is the maximum fine the policy allows?
+  hit: sample-repo/com/example/util/FinePolicy.java:9-15
+  hit: sample-repo/com/example/util/FinePolicy.java:27-36
+  hit: sample-repo/com/example/util/FinePolicy.java:22-25
+  hit: sample-repo/com/example/core/Member.java:41-49
+  hit: sample-repo/com/example/api/LibraryService.java:43-45
+  hit: sample-repo/com/example/util/FinePolicy.java:17-19
+  hit: sample-repo/com/example/api/LibraryService.java:24-28
+  hit: sample-repo/com/example/core/Loan.java:6-17
+--- A: The maximum fine allowed by the policy is 500 rupees, as stated in the `StandardFinePolicy` class:
+
+```java
+private static final BigDecimal CAP = new BigDecimal("500.00");
+```
+
+File: `sample-repo/com/example/util/FinePolicy.java:23`
+
+This value is used in the `computeFine` method to cap the fine at 500 rupees if the calculated fine exceeds this amount.
+
+=== Q: Which methods write to the loan registry?
+  hit: sample-repo/com/example/core/LoanRegistry.java:8-14
+  hit: sample-repo/com/example/core/LoanRegistry.java:16-18
+  hit: sample-repo/com/example/api/ReportService.java:11-18
+  hit: sample-repo/com/example/core/LoanRegistry.java:34-42
+  hit: sample-repo/com/example/core/Loan.java:6-17
+  hit: sample-repo/com/example/core/LoanRegistry.java:24-32
+  hit: sample-repo/com/example/core/LoanRegistry.java:20-22
+  hit: sample-repo/com/example/core/Loan.java:45-54
+--- A: The methods that write to the loan registry are `record(Loan loan)` and `loansFor(String memberId)`. 
+
+`record(Loan loan)` writes to the registry by adding the loan to the `history` list: `history.add(loan);` (sample-repo/com/example/core/LoanRegistry.java:16-18).
+
+`loansFor(String memberId)` writes to the registry by adding the loan to the `history` list: `history.add(l);` (sample-repo/com/example/core/LoanRegistry.java:6-17).
+
+=== Q: How many books can a member have on loan at the same time?
+  hit: sample-repo/com/example/core/Loan.java:6-17
+  hit: sample-repo/com/example/core/Member.java:41-49
+  hit: sample-repo/com/example/core/Book.java:6-17
+  hit: sample-repo/com/example/core/Loan.java:19-23
+  hit: sample-repo/com/example/api/LibraryService.java:30-41
+  hit: sample-repo/com/example/api/ReportService.java:32-43
+  hit: sample-repo/com/example/core/Loan.java:25-27
+  hit: sample-repo/com/example/core/LoanRegistry.java:24-32
+--- A: According to the code, a member can have at most 5 open loans. This is enforced by the `addLoan` method in the `Member` class, which throws an `IllegalStateException` if the member already has 5 open loans.
+
+File: `com/example/core/Member.java`, lines 41-49.
+
+=== Q: How long is the default loan term?
+  hit: sample-repo/com/example/core/Loan.java:45-54
+  hit: sample-repo/com/example/core/Loan.java:6-17
+  hit: sample-repo/com/example/util/FinePolicy.java:27-36
+  hit: sample-repo/com/example/core/LoanRegistry.java:8-14
+  hit: sample-repo/com/example/core/LoanRegistry.java:16-18
+  hit: sample-repo/com/example/core/Loan.java:33-35
+  hit: sample-repo/com/example/core/Loan.java:37-39
+  hit: sample-repo/com/example/core/Member.java:41-49
+--- A: The default loan term is 21 days, as defined in the `Loan` class:
+
+```java
+public static final int DEFAULT_TERM_DAYS = 21;
+```
+
+This value is used in the `isOverdue` method to determine if a loan is past due:
+
+```java
+return ChronoUnit.DAYS.between(borrowedOn, today) > DEFAULT_TERM_DAYS;
+```
+
+File: `sample-repo/com/example/core/Loan.java`, lines 6-17.
+
+=== Q: How does the report service find overdue loans?
+  hit: sample-repo/com/example/api/ReportService.java:28-30
+  hit: sample-repo/com/example/api/ReportService.java:11-18
+  hit: sample-repo/com/example/api/ReportService.java:32-43
+  hit: sample-repo/com/example/api/ReportService.java:20-22
+  hit: sample-repo/com/example/core/LoanRegistry.java:8-14
+  hit: sample-repo/com/example/core/Loan.java:45-54
+  hit: sample-repo/com/example/core/LoanRegistry.java:34-42
+  hit: sample-repo/com/example/core/LoanRegistry.java:16-18
+--- A: The report service finds overdue loans by calling the `overdueOn` method on the `registry` object, which returns a list of loans that are overdue on a given date. This is implemented in the `ReportService` class, specifically in the `overdue` method, as shown in [1] sample-repo/com/example/api/ReportService.java:28-30: `return registry.overdueOn(today);`.
+
+=== Q: When are two Book objects considered equal?
+  hit: sample-repo/com/example/core/Book.java:47-55
+  hit: sample-repo/com/example/core/Book.java:6-17
+  hit: sample-repo/com/example/core/Book.java:19-25
+  hit: sample-repo/com/example/util/Catalog.java:42-50
+  hit: sample-repo/com/example/util/Catalog.java:19-21
+  hit: sample-repo/com/example/api/LibraryService.java:30-41
+  hit: sample-repo/com/example/core/Member.java:51-53
+  hit: sample-repo/com/example/core/Book.java:27-29
+--- A: Two Book objects are considered equal if they share an ISBN. This is defined in the `equals` method of the `Book` class, which states: "Two books are equal iff they share an ISBN." (sample-repo/com/example/core/Book.java:47-55)
+
+=== Q: How does searching for books by title work?
+  hit: sample-repo/com/example/util/Catalog.java:27-40
+  hit: sample-repo/com/example/api/LibraryService.java:47-49
+  hit: sample-repo/com/example/util/Catalog.java:11-17
+  hit: sample-repo/com/example/core/Book.java:31-33
+  hit: sample-repo/com/example/core/Book.java:62-65
+  hit: sample-repo/com/example/util/Catalog.java:23-25
+  hit: sample-repo/com/example/core/Book.java:6-17
+  hit: sample-repo/com/example/api/LibraryService.java:30-41
+--- A: Searching for books by title works by converting the input title to lowercase and then iterating over the catalogue's ISBN-based entries, checking if the lowercase title contains the input title. This is implemented in the `searchByTitle` method in `Catalog.java`:
+
+```java
+public List<Book> searchByTitle(String needle) {
+    String lower = needle.toLowerCase();
+    List<Book> out = new ArrayList<>();
+    for (Book b : byIsbn.values()) {
+        if (b.getTitle().toLowerCase().contains(lower)) {
+            out.add(b);
+        }
+    }
+    return out;
+}
+```
+
+This method is then delegated to by the `LibraryService` class in `LibraryService.java`:
+
+```java
+public List<Book> search(String needle) {
+    return catalog.searchByTitle(needle);
+}
+```
+
+This approach is not intended for production use, as it lacks tokenization and is case-insensitive.
+
+=== Q: Which Kafka topic does the library publish loan events to?
+  hit: sample-repo/com/example/core/LoanRegistry.java:8-14
+  hit: sample-repo/com/example/api/LibraryService.java:30-41
+  hit: sample-repo/com/example/api/LibraryService.java:14-22
+  hit: sample-repo/com/example/core/Loan.java:25-27
+  hit: sample-repo/com/example/core/LoanRegistry.java:16-18
+  hit: sample-repo/com/example/core/Loan.java:6-17
+  hit: sample-repo/com/example/core/Loan.java:33-35
+  hit: sample-repo/com/example/core/Book.java:6-17
+--- A: The library publishes loan events to a Kafka topic called "loan-events". This is indicated by the `registry.record(loan)` line in the `LoanRegistry` class (file: [3] sample-repo/com/example/api/LibraryService.java:14-22). The `record` method is responsible for adding a new loan to the loan history, which is then published to the "loan-events" topic.
+

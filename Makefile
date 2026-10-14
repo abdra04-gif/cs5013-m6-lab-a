@@ -20,7 +20,7 @@ TESTS := $(shell find test -name '*.java' 2>/dev/null)
 LC4J_CP := $(shell [ -d $(LC4J_DIR) ] && find $(LC4J_DIR) -name '*.jar' 2>/dev/null | paste -sd ':' -)
 CP      := $(JUNIT_JAR)$(if $(LC4J_CP),:$(LC4J_CP),):build
 
-.PHONY: deps build test run clean langchain4j
+.PHONY: deps build test run eval clean langchain4j
 
 deps: $(JUNIT_JAR)
 
@@ -38,6 +38,10 @@ test: build
 # Runs Main.main() against sample-repo/.  Prints chunk count + time.
 run: build
 	java -cp $(CP) Main
+
+# Retrieval hit-rate@8 over the ten questions (CHUNKER=lines for task 7).
+eval: build
+	java -cp $(CP) RetrievalEval
 
 # One-shot: pull langchain4j and its transitive deps into libs/langchain4j/.
 # Requires Maven on the PATH.  Re-run if you bump the version in pom.xml.

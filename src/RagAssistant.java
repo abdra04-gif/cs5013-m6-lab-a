@@ -2,7 +2,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Query-time RAG assistant. Takes a natural-language query, embeds it,
@@ -13,6 +16,8 @@ import java.util.List;
  * {@link #buildPrompt(String, List)}.  Do NOT edit {@link #answer}.
  */
 public class RagAssistant {
+
+    private static final Pattern PLACEHOLDER = Pattern.compile("\\{(query|context)\\}");
 
     private final RepoIndexer indexer;
     private final Embedder embedder;
@@ -33,29 +38,70 @@ public class RagAssistant {
     }
 
     /**
-     * TODO(session-6A): embed the query, rank every indexed chunk by
-     * cosine similarity, and return the top k.
+     * Embeds the query, ranks every indexed chunk by cosine similarity,
+     * and returns the top k (best first).
      *
-     * The stub below ignores the query entirely and returns the first
-     * k chunks in whatever order the indexer stored them.  Good enough
-     * for the pipeline to compile; useless for actual retrieval.
+     * @throws IllegalStateException if the index was built with a different
+     *         embedding model than the one used for the query.
      */
     protected List<Chunk> retrieve(String query, int k) {
-        List<Chunk> all = indexer.getIndex();
-        return new ArrayList<>(all.subList(0, Math.min(k, all.size())));
+        if (!indexer.getEmbedderId().equals(embedder.modelId())) {
+            throw new IllegalStateException("embedding model mismatch: index built with "
+                    + indexer.getEmbedderId() + ", query embedded with " + embedder.modelId());
+        }
+        float[] q = embedder.embed(query);
+        record Scored(Chunk chunk, double score) {}
+        List<Scored> scored = new ArrayList<>();
+        for (Chunk c : indexer.getIndex()) {
+            scored.add(new Scored(c, cosine(q, c.embedding())));
+        }
+        scored.sort(Comparator.comparingDouble(Scored::score).reversed());
+        List<Chunk> out = new ArrayList<>();
+        for (int i = 0; i < Math.min(k, scored.size()); i++) {
+            out.add(scored.get(i).chunk());
+        }
+        return out;
     }
 
     /**
-     * TODO(session-6A): load the template from {@link #promptTemplate},
-     * substitute {@code {query}} and {@code {context}} placeholders with
-     * the query and a concatenation of hits (source:line + content), and
-     * return the assembled prompt.
-     *
-     * The stub below returns the raw template with the placeholders
-     * still intact -- so the LLM will see literal "{query}" and
-     * "{context}" strings and your answers will be visibly wrong.
+     * Loads the template from {@link #promptTemplate} and substitutes
+     * {@code {query}} and {@code {context}}; the context is one
+     * "source:start-end" header plus content block per hit, in rank order.
+     * Substitution is single-pass so placeholder-looking text inside a
+     * chunk or the query is never expanded.
      */
     protected String buildPrompt(String query, List<Chunk> hits) throws IOException {
-        return Files.readString(promptTemplate);
+        StringBuilder ctx = new StringBuilder();
+        for (int i = 0; i < hits.size(); i++) {
+            Chunk c = hits.get(i);
+            ctx.append("[").append(i + 1).append("] ")
+               .append(c.source()).append(':').append(c.startLine()).append('-').append(c.endLine())
+               .append('\n').append(c.content().strip()).append("\n\n");
+        }
+        String context = ctx.toString().strip();
+
+        String template = Files.readString(promptTemplate);
+        Matcher m = PLACEHOLDER.matcher(template);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            String value = m.group(1).equals("query") ? query : context;
+            m.appendReplacement(out, Matcher.quoteReplacement(value));
+        }
+        m.appendTail(out);
+        return out.toString();
+    }
+
+    /** Full cosine (does not assume unit-length vectors). */
+    static double cosine(float[] a, float[] b) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("dim mismatch: " + a.length + " vs " + b.length);
+        }
+        double dot = 0, na = 0, nb = 0;
+        for (int i = 0; i < a.length; i++) {
+            dot += a[i] * b[i];
+            na += a[i] * a[i];
+            nb += b[i] * b[i];
+        }
+        return (na == 0 || nb == 0) ? 0 : dot / (Math.sqrt(na) * Math.sqrt(nb));
     }
 }
